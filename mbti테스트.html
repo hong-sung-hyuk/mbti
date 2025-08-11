@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>초간단 MBTI 테스트</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --text:#e7e9ee; --muted:#a9b1bd; --accent:#4f8cff; --good:#22c55e; }
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Apple SD Gothic Neo, Noto Sans KR, sans-serif; }
+  body { margin:0; background:linear-gradient(180deg,#0f1115, #0f1115 40%, #101522); color:var(--text); }
+  .wrap { max-width: 920px; margin: 36px auto; padding: 0 16px; }
+  .card { background: var(--card); border: 1px solid #202635; border-radius: 16px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  h1 { margin: 0 0 12px; font-size: 24px; letter-spacing: -0.3px; }
+  p.lead { margin: 0 0 16px; color: var(--muted); }
+  .progress { height: 10px; background:#222837; border-radius:999px; overflow:hidden; margin: 14px 0 22px; }
+  .bar { height:100%; width:0%; background:linear-gradient(90deg, var(--accent), #6aa5ff); transition: width .25s ease; }
+  .q { padding: 18px 14px; border:1px solid #232a3a; border-radius: 12px; margin: 12px 0; background:#121722; }
+  .q h3 { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+  .opt { display:flex; gap:10px; margin: 6px 0; }
+  .opt label { flex:1; padding:10px 12px; border:1px solid #2a3244; border-radius:10px; cursor:pointer; background:#0f1420; display:flex; gap:10px; align-items:center; }
+  .opt input { accent-color: var(--accent); width:16px; height:16px; }
+  .opt label:hover { border-color:#3a4560; }
+  .actions { display:flex; gap:10px; justify-content:flex-end; margin-top: 18px; }
+  button { background: var(--accent); color:white; border:none; padding:11px 16px; border-radius:10px; font-weight:700; cursor:pointer; }
+  button[disabled]{ opacity:.5; cursor:not-allowed; }
+  .ghost { background:#232a3a; color:#e7e9ee; }
+  .result { margin-top: 18px; padding: 18px; border:1px solid #2b3244; border-radius: 12px; background:#0f1420; }
+  .type { font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+  .desc { color: var(--muted); margin-top: 4px; }
+  .pill { display:inline-block; padding:4px 8px; background:#1a2336; border:1px solid #2a3552; border-radius:999px; font-size:12px; margin-right:6px; color:#cfd6e6; }
+  footer { margin: 28px 0 6px; text-align:center; color:#6f7a8e; font-size:12px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>초간단 MBTI 테스트</h1>
+      <p class="lead">문항은 12개. 느낌 오는 쪽을 고르세요. 망설임 금지, 첫 인상이 정답에 가깝습니다.</p>
+
+      <!-- 진행 바 -->
+      <div class="progress" aria-label="진행률">
+        <div id="bar" class="bar"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; color:var(--muted); font-size:13px;">
+        <span>진행률: <span id="progressText">0%</span></span>
+        <span><span id="answered">0</span> / <span id="total">12</span> 문항</span>
+      </div>
+
+      <!-- 질문 목록 -->
+      <div id="questions"></div>
+
+      <div class="actions">
+        <button id="resetBtn" class="ghost" type="button">다시 하기</button>
+        <button id="submitBtn" type="button" disabled>결과 보기</button>
+      </div>
+
+      <div id="result" class="result" style="display:none;">
+        <div class="type" id="typeText">MBTI</div>
+        <div style="margin-top:8px;">
+          <span class="pill" id="pill1"></span>
+          <span class="pill" id="pill2"></span>
+          <span class="pill" id="pill3"></span>
+          <span class="pill" id="pill4"></span>
+        </div>
+        <div class="desc" id="descText"></div>
+      </div>
+    </div>
+    <footer>© 초간단 MBTI 테스트 · Design copyright by 홍성혁 · made for fun · 과학적 진단이 아닌 자기이해용입니다.</footer>
+
+  </div>
+
+<script>
+/** 문항 정의: 각 항목은 어느 축(E/I, S/N, T/F, J/P)에 점수를 주는지 명시 */
+const QUESTIONS = [
+  // E vs I (3)
+  { id:1, axis:"EI", question:"처음 보는 사람들과의 모임에서 나는…", a:{text:"대화의 불씨를 먼저 지피는 편", gives:"E"}, b:{text:"상황을 살피며 천천히 적응", gives:"I"} },
+  { id:2, axis:"EI", question:"주말 계획은?", a:{text:"밖으로! 행사/사람 만남", gives:"E"}, b:{text:"집콕! 충전이 필요", gives:"I"} },
+  { id:3, axis:"EI", question:"아이디어 떠오르면", a:{text:"바로 말하며 키운다", gives:"E"}, b:{text:"정리 후 조심스레 꺼낸다", gives:"I"} },
+
+  // S vs N (3)
+  { id:4, axis:"SN", question:"설명 들을 때 더 편한 건", a:{text:"사례·사실·디테일", gives:"S"}, b:{text:"개념·가능성·큰그림", gives:"N"} },
+  { id:5, axis:"SN", question:"새 프로젝트를 보면", a:{text:"현실 제약부터 체크", gives:"S"}, b:{text:"새로운 시나리오 상상", gives:"N"} },
+  { id:6, axis:"SN", question:"메모 스타일은", a:{text:"구체 리스트", gives:"S"}, b:{text:"연결 화살표·스케치", gives:"N"} },
+
+  // T vs F (3)
+  { id:7, axis:"TF", question:"의사결정에서 우선하는 건", a:{text:"원칙·논리·공정성", gives:"T"}, b:{text:"조화·관계·공감", gives:"F"} },
+  { id:8, axis:"TF", question:"피드백할 때", a:{text:"정확히 문제를 지적", gives:"T"}, b:{text:"기분 상하지 않게 표현", gives:"F"} },
+  { id:9, axis:"TF", question:"갈등 상황에서", a:{text:"사실관계부터 정리", gives:"T"}, b:{text:"감정 상태부터 확인", gives:"F"} },
+
+  // J vs P (3)
+  { id:10, axis:"JP", question:"일정 관리", a:{text:"계획표가 있어야 마음 편함", gives:"J"}, b:{text:"유연하게 흘러가도 괜찮음", gives:"P"} },
+  { id:11, axis:"JP", question:"〆 데드라인", a:{text:"미리미리 끝내는 편", gives:"J"}, b:{text:"막판 집중이 효율적", gives:"P"} },
+  { id:12, axis:"JP", question:"여행 스타일", a:{text:"루트·맛집 사전 확정", gives:"J"}, b:{text:"현지에서 즉흥 선택", gives:"P"} },
+];
+
+const TYPE_DESC = {
+  "INTJ":"전략가 · 구조화된 비전으로 길을 설계합니다.",
+  "INTP":"탐구가 · 원리를 파고들어 모형을 만듭니다.",
+  "ENTJ":"지휘관 · 목표를 설정하고 자원을 정렬합니다.",
+  "ENTP":"발명가 · 규칙의 틈을 찾아 새 길을 엽니다.",
+  "INFJ":"옹호자 · 의미를 추구하고 사람을 돕습니다.",
+  "INFP":"중재자 · 가치와 가능성을 연결합니다.",
+  "ENFJ":"선도자 · 사람을 조직해 변화를 이끕니다.",
+  "ENFP":"활동가 · 아이디어에 불을 붙여 확산합니다.",
+  "ISTJ":"관리자 · 신뢰할 수 있는 체계를 유지합니다.",
+  "ISFJ":"수호자 · 사람과 약속을 성실히 보호합니다.",
+  "ESTJ":"실행가 · 기준을 세우고 결과를 냅니다.",
+  "ESFJ":"협력가 · 관계를 배려하며 맞춤 지원합니다.",
+  "ISTP":"장인 · 손으로 문제를 해결합니다.",
+  "ISFP":"예술가 · 감각으로 조용히 빛냅니다.",
+  "ESTP":"모험가 · 현장에서 즉시 돌파합니다.",
+  "ESFP":"퍼포머 · 분위기를 살리고 참여를 이끕니다."
+};
+
+const container = document.getElementById("questions");
+const totalEl = document.getElementById("total");
+const answeredEl = document.getElementById("answered");
+const barEl = document.getElementById("bar");
+const progressTextEl = document.getElementById("progressText");
+const submitBtn = document.getElementById("submitBtn");
+const resetBtn = document.getElementById("resetBtn");
+const resultBox = document.getElementById("result");
+
+function renderQuestions() {
+  totalEl.textContent = String(QUESTIONS.length);
+  container.innerHTML = "";
+  QUESTIONS.forEach((q, idx) => {
+    const qEl = document.createElement("div");
+    qEl.className = "q";
+    qEl.innerHTML = `
+      <h3>${idx+1}. ${q.question}</h3>
+      <div class="opt">
+        <label>
+          <input type="radio" name="q${q.id}" value="${q.a.gives}" />
+          <span>${q.a.text}</span>
+        </label>
+        <label>
+          <input type="radio" name="q${q.id}" value="${q.b.gives}" />
+          <span>${q.b.text}</span>
+        </label>
+      </div>
+    `;
+    container.appendChild(qEl);
+  });
+
+  container.addEventListener("change", onChange);
+}
+
+function onChange() {
+  const answered = getAnswers().length;
+  answeredEl.textContent = String(answered);
+  const pct = Math.round((answered / QUESTIONS.length) * 100);
+  barEl.style.width = pct + "%";
+  progressTextEl.textContent = pct + "%";
+  submitBtn.disabled = answered !== QUESTIONS.length;
+}
+
+function getAnswers() {
+  const answers = [];
+  QUESTIONS.forEach(q => {
+    const chosen = document.querySelector(`input[name="q${q.id}"]:checked`);
+    if (chosen) answers.push({ axis:q.axis, value:chosen.value });
+  });
+  return answers;
+}
+
+function scoreToType(answers) {
+  const tally = { E:0, I:0, S:0, N:0, T:0, F:0, J:0, P:0 };
+  answers.forEach(a => tally[a.value]++);
+  const EI = (tally.E >= tally.I) ? "E" : "I";
+  const SN = (tally.S >= tally.N) ? "S" : "N";
+  const TF = (tally.T >= tally.F) ? "T" : "F";
+  const JP = (tally.J >= tally.P) ? "J" : "P";
+  return EI + SN + TF + JP;
+}
+
+function showResult() {
+  const answers = getAnswers();
+  if (answers.length !== QUESTIONS.length) return;
+  const type = scoreToType(answers);
+  const desc = TYPE_DESC[type] || "자신만의 독특한 조합!";
+
+  // 축별로 몇 표였는지 표시용
+  const count = { E:0,I:0,S:0,N:0,T:0,F:0,J:0,P:0 };
+  answers.forEach(a=>count[a.value]++);
+
+  document.getElementById("typeText").textContent = type;
+  document.getElementById("descText").textContent = desc;
+  document.getElementById("pill1").textContent = `E:${count.E} / I:${count.I}`;
+  document.getElementById("pill2").textContent = `S:${count.S} / N:${count.N}`;
+  document.getElementById("pill3").textContent = `T:${count.T} / F:${count.F}`;
+  document.getElementById("pill4").textContent = `J:${count.J} / P:${count.P}`;
+
+  resultBox.style.display = "block";
+  resultBox.scrollIntoView({ behavior:"smooth", block:"center" });
+}
+
+function resetAll() {
+  document.querySelectorAll('input[type="radio"]').forEach(i => i.checked = false);
+  resultBox.style.display = "none";
+  onChange();
+  window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+renderQuestions();
+onChange();
+submitBtn.addEventListener("click", showResult);
+resetBtn.addEventListener("click", resetAll);
+</script>
+</body>
+</html>
